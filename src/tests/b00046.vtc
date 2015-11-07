@@ -1,0 +1,48 @@
+varnishtest "Check that TCP OOB urgent data doesn't cause ill effects"
+
+server s1 {
+	rxreq
+	send_urgent " "
+	txresp
+	send_urgent " "
+
+	rxreq
+	send_urgent " "
+	txresp
+	send_urgent " "
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	delay 0.5
+	send_urgent " "
+	expect_close
+} -run
+
+client c1 {
+	send_urgent " "
+	txreq -url /1
+	send_urgent " "
+	rxresp
+	send_urgent " "
+	txreq -url /2
+	send_urgent " "
+	rxresp
+	send_urgent " "
+} -run
