@@ -1,0 +1,63 @@
+varnishtest "Check naming of backends"
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("s1");
+	}
+
+	sub vcl_backend_response {
+	    set beresp.http.X-Backend-Name = bereq.backend;
+	}
+} -start
+
+client c1 {
+	txreq -url "/"
+	rxresp
+	expect resp.http.X-Backend-Name == "s1"
+} -run
+
+varnish v1 -vcl {
+	import ${vmod_directors};
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+		new bar = directors.random();
+		bar.add_backend(backend_dyn.by_name("s1"), 1);
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = bar.backend();
+	}
+
+	sub vcl_backend_response {
+		set beresp.http.X-Backend-Name = bereq.backend;
+	}
+}
+
+client c1 {
+	txreq -url "/"
+	rxresp
+	expect resp.http.X-Backend-Name == "s1"
+} -run
