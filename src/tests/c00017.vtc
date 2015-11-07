@@ -1,0 +1,51 @@
+varnishtest "Test Backend Polling"
+
+server s1 {
+	# Probes
+	loop 8 {
+		rxreq
+		expect req.url == "/"
+		txresp -hdr "Bar: foo" -body "foobar"
+		accept
+	}
+
+	loop 3 {
+		rxreq
+		expect req.url == "/"
+		txresp -status 404 -hdr "Bar: foo" -body "foobar"
+		accept
+	}
+	loop 2 {
+		rxreq
+		expect req.url == "/"
+		txresp -proto "FROBOZ" -status 200 -hdr "Bar: foo" -body "foobar"
+		accept
+	}
+
+	sema r1 sync 2
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	probe p {
+		.timeout = 1 s;
+		.interval = 0.1 s;
+	}
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.add_probe(backend_dyn.by_name("be"), p)) {
+			return(fail);
+		}
+	}
+} -start
+
+sema r1 sync 2
+
+varnish v1 -cli "backend.list -p"
