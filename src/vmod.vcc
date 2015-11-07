@@ -1,0 +1,36 @@
+#-
+# Copyright (c) 2015 UPLEX Nils Goroll Systemoptimierung
+# All rights reserved
+#
+# Author: Geoffrey Simmons <geoffrey.simmons@uplex.de>
+#
+# See LICENCE
+#
+
+$Module backend_dyn 3 Varnish Module to dynamically create and remove backends and probes
+
+DESCRIPTION
+===========
+
+This is the embedded documentation for the example VMOD. It should
+mention what the vmod is intended to do.
+
+$Function BOOL create(PRIV_VCL, STRING name, STRING host, STRING port="",
+                      STRING host_header="", DURATION connect_timeout=0,
+                      DURATION first_byte_timeout=0,
+                      DURATION between_bytes_timeout=0,
+                      INT max_connections=0)
+
+$Function BACKEND by_name(PRIV_VCL, STRING name)
+
+$Function BOOL delete(PRIV_VCL, BACKEND be)
+
+$Function BOOL add_probe(BACKEND be, PROBE probe)
+
+$Function BOOL remove_probe(BACKEND be)
+
+$Function BOOL stop_probe(BACKEND be)
+
+$Function BOOL start_probe(BACKEND be)
+
+$Function STRING version()

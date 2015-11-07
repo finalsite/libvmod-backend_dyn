@@ -1,0 +1,49 @@
+varnishtest "Check chunked encoding from backend works"
+
+server s1 {
+	rxreq
+	expect req.url == "/bar"
+	send "HTTP/1.1 200 OK\r\n"
+	send "Transfer-encoding: chunked\r\n"
+	send "\r\n"
+	send "00000004\r\n1234\r\n"
+	send "00000000\r\n"
+	send "\r\n"
+
+	rxreq
+	expect req.url == "/foo"
+	send "HTTP/1.1 200 OK\r\n"
+	send "Transfer-encoding: chunked\r\n"
+	send "\r\n"
+	send "00000004\r\n1234\r\n"
+	chunked "1234"
+	chunked ""
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq -url "/bar"
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == "4"
+	txreq -url "/foo"
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == "8"
+} -run

@@ -1,0 +1,34 @@
+varnishtest "Check that a pipe transaction works"
+
+server s1 -repeat 1 {
+	rxreq
+	txresp -body "012345\n"
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+		return(pipe);
+	}
+} -start
+
+client c1 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+} -run
+
+varnish v1 -cliok "backend.list -p"
+
+varnish v1 -expect s_pipe == 1
