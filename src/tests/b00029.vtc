@@ -1,0 +1,39 @@
+varnishtest "Test orderly connection closure"
+
+
+server s1 {
+	rxreq
+	txresp -nolen -hdr "Transfer-encoding: chunked"
+	delay .2
+	chunkedlen 30000
+	delay .2
+	chunkedlen 100000
+	delay .2
+	chunkedlen 0
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        port="${s1_port}",
+					first_byte_timeout = 2s)) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+
+client c1 {
+	txreq -hdr "Connection: close"
+	delay 3
+	rxresp
+	expect resp.bodylen == 130000
+} -run
