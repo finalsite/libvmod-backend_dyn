@@ -1,0 +1,49 @@
+varnishtest "Check that the first_byte_timeout works from backend definition"
+
+feature SO_RCVTIMEO_WORKS
+
+server s1 {
+	rxreq
+	delay 1.5
+	txresp
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b1", host="${s1_addr}",
+		   		        port="${s1_port}",
+					first_byte_timeout = 1s)) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("b1");
+	}
+} -start
+
+# Fragmenting storage tests for #1397
+varnish v1 -cliok "debug.fragfetch 4"
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+
+server s1 {
+	rxreq
+	delay 0.5
+	txresp
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
