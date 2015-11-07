@@ -19,8 +19,7 @@ varnish v1 -vcl {
 
 	sub vcl_init {
 		if (!backend_dyn.create(name="be", host="${s1_addr}",
-		   		        port="${s1_port}",
-					first_byte_timeout = 2s)) {
+		   		        	   port="${s1_port}")) {
 			return(fail);
 		}
 	}
