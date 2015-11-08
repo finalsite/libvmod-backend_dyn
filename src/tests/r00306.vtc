@@ -1,0 +1,63 @@
+varnishtest "Regression test for ticket #306, random director ignoring good backend"
+
+server s1 {
+
+	rxreq
+	expect req.url == /foo
+	txresp -body "foo1"
+
+	rxreq
+	expect req.url == /bar
+	txresp -body "bar1"
+
+} -start
+
+server s2 {
+	rxreq
+	txresp -status 404
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	import ${vmod_directors};
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="s2", host="${s2_addr}",
+		   		        	   port="${s2_port}")) {
+			return(fail);
+		}
+		new foo = directors.random();
+		foo.add_backend(backend_dyn.by_name("s1"), 1);
+		foo.add_backend(backend_dyn.by_name("s2"), 1);
+	}
+
+	sub vcl_backend_fetch {
+		set bereq.backend = foo.backend();
+	}
+} -start
+
+varnish v1 -cliok "backend.set_health s2 sick"
+varnish v1 -cliok "backend.list"
+
+client c1 {
+	timeout 10
+
+	txreq -url "/foo"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/bar"
+	rxresp
+	expect resp.status == 200
+
+} -run
+
+varnish v1 -expect VBE.vcl1.s1.happy == 0
+varnish v1 -expect VBE.vcl1.s2.happy == 0
+varnish v1 -expect MAIN.n_backend == 3
