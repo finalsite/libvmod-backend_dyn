@@ -1,0 +1,68 @@
+varnishtest "Check a standard backend named 'default' is the default"
+
+server s1 {
+	rxreq
+	txresp -bodylen 25
+} -start
+
+server s2 {
+	rxreq
+	txresp -bodylen 52
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend default {
+		.host = "${s2_addr}";
+		.port = "${s2_port}";
+	}
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+						   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_backend_fetch {
+		if (bereq.url != bereq.url) {
+			set bereq.backend = backend_dyn.by_name("s1");
+		}
+	}
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.bodylen == 52
+} -run
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+						   port="${s1_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="default", host="${s2_addr}",
+							port="${s2_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_backend_fetch {
+		if (bereq.url != bereq.url) {
+			set bereq.backend = backend_dyn.by_name("s1");
+		}
+	}
+}
+
+client c2 {
+	txreq
+	rxresp
+	expect resp.bodylen == 52
+} -run
