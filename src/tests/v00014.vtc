@@ -1,0 +1,70 @@
+varnishtest "Check req.backend.healthy"
+
+server s1 {
+	rxreq
+	sema r1 sync 2
+	expect req.url == "/"
+	txresp -body "slash"
+	accept
+	rxreq
+	sema r2 sync 2
+	sema r3 sync 2
+	expect req.url == "/"
+	txresp -body "slash"
+	accept
+	sema r4 sync 2
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	import ${vmod_std};
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	probe foo {
+		.url = "/";
+		.timeout = 1s;
+		.interval = 1s;
+		.window = 3;
+		.threshold = 2;
+		.initial = 0;
+	}
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+						   port="${s1_port}",
+						   max_connections = 1,
+						   probe=foo)) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		if (std.healthy(backend_dyn.by_name("be"))) {
+			return(synth(200,"Backend healthy"));
+		} else {
+			return(synth(500,"Backend sick"));
+		}
+	}
+} -start
+
+varnish v1 -cliok "backend.list -p"
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 500
+
+	sema r1 sync 2
+
+	sema r2 sync 2
+	txreq
+	rxresp
+	expect resp.status == 500
+
+	sema r3 sync 2
+	sema r4 sync 2
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
