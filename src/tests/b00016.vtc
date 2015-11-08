@@ -61,3 +61,5 @@ client c1 {
 	rxresp
 	expect resp.http.X-Backend-Name == "s1"
 } -run
+
+varnish v1 -expect VBE.vcl1.s1.happy == 0

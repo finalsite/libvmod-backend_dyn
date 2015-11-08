@@ -135,9 +135,10 @@ get_addrname(struct suckaddr *sa)
 
 VCL_BOOL
 vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
-	    VCL_STRING host, VCL_STRING port, VCL_STRING host_header,
-	    VCL_DURATION connect_timeout, VCL_DURATION first_byte_timeout,
-	    VCL_DURATION between_bytes_timeout, VCL_INT max_connections)
+	    VCL_STRING host, VCL_STRING port, VCL_PROBE probe,
+	    VCL_STRING host_header, VCL_DURATION connect_timeout,
+	    VCL_DURATION first_byte_timeout, VCL_DURATION between_bytes_timeout,
+	    VCL_INT max_connections)
 {
 	struct belist *belist;
 	struct bentry *bentry;
@@ -205,6 +206,19 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 
 	dir = VRT_new_backend(ctx, &be);
 	CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
+
+	if (probe != NULL) {
+		struct backend *backend;
+		struct tcp_pool *tpool;
+
+		CAST_OBJ_NOTNULL(backend, dir->priv, BACKEND_MAGIC);
+		AZ(backend->probe);
+		tpool = VBT_Ref(sa4, sa6);
+		AN(tpool);
+		VBP_Insert(backend, probe, tpool);
+		AN(backend->probe);
+	}
+
 	ALLOC_OBJ(bentry, BENTRY_MAGIC);
 	AN(bentry);
 	bentry->be = dir;
@@ -283,22 +297,6 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 		}
 	}
 	VCL_DelBackend(backend);
-	return 1;
-}
-
-VCL_BOOL
-vmod_add_probe(VRT_CTX, VCL_BACKEND be, VCL_PROBE probe)
-{
-	struct backend *backend;
-
-	CHECK_OBJ_NOTNULL(probe, VRT_BACKEND_PROBE_MAGIC);
-	backend = check_and_get_backend(ctx, be);
-	if (backend == NULL)
-		return 0;
-	if (backend->probe != NULL)
-		VBP_Remove(backend);
-	VBP_Insert(backend, probe, backend->tcp_pool);
-	AN(backend->probe);
 	return 1;
 }
 

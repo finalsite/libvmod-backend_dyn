@@ -16,16 +16,14 @@ This is the embedded documentation for the example VMOD. It should
 mention what the vmod is intended to do.
 
 $Function BOOL create(PRIV_VCL, STRING name, STRING host, STRING port="",
-                      STRING host_header="", DURATION connect_timeout=0,
-                      DURATION first_byte_timeout=0,
+                      PROBE probe=0, STRING host_header="",
+		      DURATION connect_timeout=0, DURATION first_byte_timeout=0,
                       DURATION between_bytes_timeout=0,
                       INT max_connections=0)
 
 $Function BACKEND by_name(PRIV_VCL, STRING name)
 
 $Function BOOL delete(PRIV_VCL, BACKEND be)
-
-$Function BOOL add_probe(BACKEND be, PROBE probe)
 
 $Function BOOL remove_probe(BACKEND be)
 

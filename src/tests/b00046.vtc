@@ -46,3 +46,5 @@ client c1 {
 	rxresp
 	send_urgent " "
 } -run
+
+varnish v1 -expect VBE.vcl1.be.happy == 0

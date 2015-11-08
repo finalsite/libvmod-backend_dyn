@@ -47,3 +47,7 @@ client c1 {
 	expect resp.status == 200
 	expect resp.bodylen == "8"
 } -run
+
+varnish v1 -expect VBE.vcl1.be.happy == 0
+varnish v1 -expect VBE.vcl1.be.req == 2
+varnish v1 -expect VBE.vcl1.be.conn > 0

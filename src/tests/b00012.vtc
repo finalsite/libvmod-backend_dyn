@@ -43,3 +43,4 @@ client c1 {
 } -run
 
 varnish v1 -expect sess_readahead == 2
+varnish v1 -expect VBE.vcl1.be.happy == 0

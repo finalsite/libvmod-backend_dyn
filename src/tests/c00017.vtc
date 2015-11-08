@@ -37,10 +37,8 @@ varnish v1 -vcl {
 
 	sub vcl_init {
 		if (!backend_dyn.create(name="be", host="${s1_addr}",
-		   		        	   port="${s1_port}")) {
-			return(fail);
-		}
-		if (!backend_dyn.add_probe(backend_dyn.by_name("be"), p)) {
+						   port="${s1_port}",
+						   probe=p)) {
 			return(fail);
 		}
 	}
@@ -49,3 +47,4 @@ varnish v1 -vcl {
 sema r1 sync 2
 
 varnish v1 -cli "backend.list -p"
+varnish v1 -expect VBE.vcl1.be.happy > 0

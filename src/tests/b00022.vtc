@@ -51,3 +51,5 @@ client c1 {
 	rxresp
 	expect resp.status == 200
 } -run
+
+varnish v1 -expect VBE.vcl1.b1.happy == 0

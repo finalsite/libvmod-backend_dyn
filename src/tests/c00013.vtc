@@ -60,3 +60,4 @@ client c1 -wait
 
 varnish v1 -expect busy_sleep == 1
 varnish v1 -expect busy_wakeup == 1
+varnish v1 -expect VBE.vcl1.be.happy == 0
