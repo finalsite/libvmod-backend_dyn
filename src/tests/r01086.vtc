@@ -1,11 +1,12 @@
-varnishtest "#942 junk after gzip from backend"
+varnishtest "#1086 junk after gzip from backend and streaming enabled"
 
 server s1 {
+	# This one will be streamed
 	rxreq
 	txresp -nolen \
 		-hdr "Content-Encoding: gzip" \
-		-hdr "Connection: close" \
-		-hdr "Transfer-Encoding: Chunked"
+		-hdr "Transfer-Encoding: Chunked" \
+		-hdr "Set-Cookie: FOO"
 	send "14\r\n"
 		# An empty gzip file:
 		sendhex "1f8b"
@@ -18,10 +19,14 @@ server s1 {
 		sendhex "00000000"
 		sendhex "00000000"
 	send "\r\n"
+
+	delay .2
+
 	chunked "FOOBAR"
 	non-fatal
 	chunkedlen 0
 } -start
+
 
 varnish v1 -vcl {
 	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
@@ -40,29 +45,30 @@ varnish v1 -vcl {
 	}
 	
 	sub vcl_backend_response {
-		set beresp.do_stream = false;
-		if (bereq.http.foo == "foo") {
-			set beresp.do_gunzip = true;
+		if (beresp.http.set-cookie == "BAR") {
+			set beresp.do_stream = false;
 		}
 	}
-}
-
-varnish v1 -cliok "param.set debug +syncvsl"
-varnish v1 -start
+} -start
 
 client c1 {
-	txreq -url /1
-	rxresp
-	expect resp.status == 503
+	txreq -hdr "Cookie: FOO"
+	rxresphdrs
+	expect resp.status == 200
+	expect_close
 } -run
+
+delay .1
 
 server s1 -wait {
 	fatal
+
+	# This one will not be streamed
 	rxreq
 	txresp -nolen \
 		-hdr "Content-Encoding: gzip" \
-		-hdr "Connection: close" \
-		-hdr "Transfer-Encoding: Chunked"
+		-hdr "Transfer-Encoding: Chunked" \
+		-hdr "Set-Cookie: BAR"
 	send "14\r\n"
 		# An empty gzip file:
 		sendhex "1f8b"
@@ -75,14 +81,17 @@ server s1 -wait {
 		sendhex "00000000"
 		sendhex "00000000"
 	send "\r\n"
+
+	delay .2
+
 	chunked "FOOBAR"
 	non-fatal
 	chunkedlen 0
+
 } -start
 
-
 client c1 {
-	txreq -url /2 -hdr "Foo: foo"
+	txreq -hdr "Cookie: BAR"
 	rxresp
 	expect resp.status == 503
 } -run
