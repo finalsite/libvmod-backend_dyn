@@ -73,3 +73,5 @@ varnish v1 -cliok "backend.list *"
 varnish v1 -cliok "backend.list *.foo"
 varnish v1 -cliok "backend.list vcl1.*"
 
+varnish v1 -expect VBE.vcl1.s1.happy > 0
+varnish v1 -expect MAIN.n_backend == 2

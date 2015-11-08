@@ -50,3 +50,4 @@ client c1 {
 
 varnish v1 -expect sess_readahead == 2
 varnish v1 -expect VBE.vcl1.be.happy == 0
+varnish v1 -expect MAIN.n_backend == 2

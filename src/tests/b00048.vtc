@@ -60,3 +60,4 @@ client c2 -wait
 client c3 -wait
 
 varnish v1 -expect VBE.vcl1.s0.happy == 0
+varnish v1 -expect MAIN.n_backend == 2
