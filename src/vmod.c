@@ -70,8 +70,12 @@ free_belist(void *priv)
 
 	CAST_OBJ_NOTNULL(belist, priv, BELIST_MAGIC);
 	AN(belist->behead);
-	VTAILQ_FOREACH(bentry, belist->behead, bentry)
+	bentry = VTAILQ_FIRST(belist->behead);
+	while (bentry != NULL) {
+		struct bentry *next = VTAILQ_NEXT(bentry, bentry);
 		FREE_OBJ(bentry);
+		bentry = next;
+	}
 	FREE_OBJ(belist);
 }
 
