@@ -1,0 +1,88 @@
+varnishtest "Test round robin director"
+
+# For VMOD backend_dyn, this test will be considered representative
+# for all director types.
+
+server s1 {
+	rxreq
+	txresp -body "1"
+} -start
+
+server s2 {
+	rxreq
+	txresp -body "22"
+} -start
+
+server s3 {
+	rxreq
+	txresp -body "333"
+} -start
+
+server s4 {
+	rxreq
+	txresp -body "4444"
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	import ${vmod_directors};
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="s2", host="${s2_addr}",
+		   		        	   port="${s2_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="s3", host="${s3_addr}",
+		   		        	   port="${s3_port}")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="s4", host="${s4_addr}",
+		   		        	   port="${s4_port}")) {
+			return(fail);
+		}
+		new rr = directors.round_robin();
+		rr.add_backend(backend_dyn.by_name("s1"));
+		rr.add_backend(backend_dyn.by_name("s2"));
+		rr.add_backend(backend_dyn.by_name("s3"));
+		rr.add_backend(backend_dyn.by_name("s4"));
+	}
+
+	sub vcl_backend_fetch {
+		set bereq.backend = rr.backend();
+	}
+} -start
+
+client c1 {
+	timeout 3
+	txreq -url "/foo1"
+	rxresp
+	expect resp.bodylen == 1
+	txreq -url "/foo2"
+	rxresp
+	expect resp.bodylen == 2
+	txreq -url "/foo3"
+	rxresp
+	expect resp.bodylen == 3
+	txreq -url "/foo4"
+	rxresp
+	expect resp.bodylen == 4
+} -run
+
+server s1 -start
+server s2 -start
+
+client c2 {
+	timeout 3
+	txreq -url "/foo11"
+	rxresp
+	expect resp.bodylen == 1
+	txreq -url "/foo22"
+	rxresp
+	expect resp.bodylen == 2
+} -run
