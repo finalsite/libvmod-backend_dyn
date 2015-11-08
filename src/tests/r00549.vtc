@@ -1,0 +1,31 @@
+varnishtest "Regression test for bad backend reply with ctrl char."
+
+server s1 {
+	rxreq
+	send "HTTP/1.1 200 OK\013\r\n\r\nTest"
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq
+	rxresp
+} -run
+
+varnish v1 -expect VBE.vcl1.be.happy == 0
+varnish v1 -expect MAIN.n_backend == 2
