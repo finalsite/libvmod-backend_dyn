@@ -1,0 +1,46 @@
+varnishtest "Backend close retry"
+
+server s1 -repeat 1 {
+	rxreq
+	txresp -bodylen 5
+
+	rxreq
+	accept
+
+	rxreq
+	txresp -bodylen 6
+
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+		return(pass);
+	}
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 5
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 6
+} -run
+
+varnish v1 -expect backend_retry == 1
+varnish v1 -expect VBE.vcl1.be.happy == 0
