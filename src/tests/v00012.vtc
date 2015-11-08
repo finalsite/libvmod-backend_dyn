@@ -1,0 +1,46 @@
+varnishtest "Check backend connection limit"
+
+server s1 {
+	rxreq
+	sema r1 sync 2
+	sema r2 sync 2
+	txresp
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+						   port="${s1_port}",
+						   max_connections = 1)) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+		return(pass);
+	}
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -start
+
+
+client c2 {
+	sema r1 sync 2
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+sema r2 sync 2
+client c1 -wait
+
+varnish v1 -expect backend_busy == 1
