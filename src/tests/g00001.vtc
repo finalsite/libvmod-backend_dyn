@@ -1,0 +1,62 @@
+varnishtest "test basic gunzip for client"
+
+server s1 {
+	rxreq
+	expect req.http.accept-encoding == "gzip"
+	txresp -gzipbody FOO
+} -start
+
+varnish v1 -cliok "param.set http_gzip_support true" -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   		        	   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.bodylen == "3"
+	expect resp.http.content-encoding == <undef>
+
+	txreq -hdr "Accept-encoding: gzip;q=0.1"
+	rxresp
+	expect resp.http.content-encoding == "gzip"
+	gunzip
+	expect resp.bodylen == "3"
+} -run
+
+delay .1
+
+client c1 {
+	txreq -proto HTTP/1.0
+	rxresp
+	expect resp.bodylen == "3"
+	expect resp.http.content-encoding == <undef>
+} -run
+
+delay .1
+
+client c1 {
+	txreq -req HEAD
+	rxresp -no_obj
+	expect resp.http.content-encoding == <undef>
+
+	txreq -req HEAD -hdr "Accept-encoding: gzip;q=0.1"
+	rxresp -no_obj
+	expect resp.http.content-length == "26"
+	expect resp.http.content-encoding == "gzip"
+} -run
+
+varnish v1 -expect VBE.vcl1.be.happy == 0
+varnish v1 -expect MAIN.n_backend == 2
