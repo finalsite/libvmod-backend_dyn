@@ -68,11 +68,16 @@ free_belist(void *priv)
 	struct belist *belist;
 	struct bentry *bentry;
 
-	CAST_OBJ_NOTNULL(belist, priv, BELIST_MAGIC);
+	if (priv == NULL)
+		return;
+	CAST_OBJ(belist, priv, BELIST_MAGIC);
 	AN(belist->behead);
 	bentry = VTAILQ_FIRST(belist->behead);
 	while (bentry != NULL) {
-		struct bentry *next = VTAILQ_NEXT(bentry, bentry);
+		struct bentry *next;
+
+		CHECK_OBJ(bentry, BENTRY_MAGIC);
+		next = VTAILQ_NEXT(bentry, bentry);
 		FREE_OBJ(bentry);
 		bentry = next;
 	}
@@ -211,6 +216,7 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 		struct backend *backend;
 		struct tcp_pool *tpool;
 
+		CHECK_OBJ(probe, VRT_BACKEND_PROBE_MAGIC);
 		CAST_OBJ_NOTNULL(backend, dir->priv, BACKEND_MAGIC);
 		AZ(backend->probe);
 		tpool = VBT_Ref(sa4, sa6);
