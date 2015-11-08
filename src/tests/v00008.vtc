@@ -1,0 +1,67 @@
+varnishtest "Test host header specification"
+
+server s1 {
+	rxreq
+	expect req.url == "/foo"
+	expect req.http.host == "snafu"
+	txresp -body "foo1"
+
+	rxreq
+	expect req.url == "/bar"
+	expect req.http.host == "127.0.0.1"
+	txresp -body "foo1"
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+						   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq -url "/foo" -hdr "Host: snafu"
+	rxresp
+	txreq -url "/bar"
+	rxresp
+} -run
+
+server s2 {
+	rxreq
+	expect req.url == "/barf"
+	expect req.http.host == "FOObar"
+	txresp -body "foo1"
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b1", host="${s2_addr}",
+						   port="${s2_port}",
+						   host_header="FOObar")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("b1");
+	}
+}
+
+client c1 {
+	txreq -url "/barf"
+	rxresp
+} -run
