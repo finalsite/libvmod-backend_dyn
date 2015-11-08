@@ -1,0 +1,71 @@
+varnishtest "Don't retry if backend ever sent anything"
+
+server s1 {
+	rxreq
+	expect req.url == /1
+	txresp -bodylen 1
+
+	rxreq
+	expect req.url == /2
+	close
+	accept
+
+	rxreq
+	expect req.url == /2
+	txresp -bodylen 2
+
+	rxreq
+	expect req.url == /3
+	send "200 "
+	delay .1
+	close
+	accept
+
+	rxreq
+	expect req.url == /4
+	txresp -bodylen 4
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+						   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq -url /1
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 1
+
+	# This one should get retried
+	txreq -url /2
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 2
+
+	# This one should not get retried
+	txreq -url /3
+	rxresp
+	expect resp.status == 503
+} -run
+client c1 {
+	txreq -url /4
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 4
+} -run
+
+varnish v1 -expect MAIN.n_backend == 2
+varnish v1 -expect VBE.vcl1.be.happy == 0
