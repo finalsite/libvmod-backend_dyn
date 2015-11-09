@@ -181,9 +181,19 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 		priv->priv = belist;
 		priv->free = free_belist;
 	}
-	else
+	else {
 		CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
-	
+		AN(belist->behead);
+		VTAILQ_FOREACH(bentry, belist->behead, bentry) {
+			CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
+			CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
+			if (strcmp(bentry->be->vcl_name, vcl_name) == 0) {
+				errmsg(ctx, "Backend %s redefined", vcl_name);
+				return 0;
+			}
+		}
+	}
+
 	sa4 = get_suckaddr(host, port, AF_INET);
 	sa6 = get_suckaddr(host, port, AF_INET6);
 	if (sa4 == NULL && sa6 == NULL) {
