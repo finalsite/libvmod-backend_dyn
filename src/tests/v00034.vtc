@@ -1,0 +1,37 @@
+varnishtest "Test sub and backend redefinition"
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl+backend { } -start
+
+varnish v1 -errvcl {Backend s1 redefined} {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="127.0.0.1")) {
+			return(fail);
+		}
+		if (!backend_dyn.create(name="s1", host="127.0.0.1")) {
+			return(fail);
+		}
+	}
+}
+
+# We currently cannot reject a name for a dynamic backend that has
+# already been declared for a static backend.
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend s1 { .host = "127.0.0.1"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="127.0.0.1")) {
+			return(fail);
+		}
+	}
+}
