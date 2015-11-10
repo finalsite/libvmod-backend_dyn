@@ -1,0 +1,71 @@
+varnishtest "VCL load failures"
+
+server s1 {
+        rxreq
+        txresp
+} -start
+
+varnish v1 -vcl+backend { } -start
+
+varnish v1 -errvcl "Cannot resolve [0:0:0:0: as a unique IPv4 or IPv6 address" {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="[0:0:0:0")) {
+			return(fail);
+		}
+	}
+}
+
+varnish v1 -errvcl "Cannot resolve [0:0:0:0]/0" {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="s1", host="[0:0:0:0]/0")) {
+			return(fail);
+		}
+	}
+}
+
+varnish v1 -errvcl "Argument 'port' already used" {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b1", host="127.0.0.1",
+						   port="NONE",
+						   port="NONE")) {
+			return(fail);
+		}
+	}
+}
+
+varnish v1 -errvcl "Unknown argument" {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b1", host="127.0.0.1",
+					fourscoreandsevenyearsago = "NONE")) {
+			return(fail);
+		}
+	}
+}
+
+varnish v1 -errvcl "Argument 'host' missing" {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+
+	backend dummy { .host = "${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b1", port="NONE")) {
+			return(fail);
+		}
+	}
+}
