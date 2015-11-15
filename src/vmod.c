@@ -293,6 +293,8 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 	struct backend *backend;
 
 	AN(priv);
+	if (be == NULL)
+		return 0;
 	backend = check_and_get_backend(ctx, be);
 	if (backend == NULL)
 		return 0;
