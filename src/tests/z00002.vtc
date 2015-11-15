@@ -1,0 +1,121 @@
+varnishtest "by_name() failure"
+
+server s1 {
+} -start
+
+# name not created by the VMOD
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_backend_fetch {
+		set bereq.backend = backend_dyn.by_name("foo");
+	}
+} -start
+
+logexpect l1 -v v1 {
+	expect * *	Begin		"^bereq "
+	expect * =	FetchError	"No backend"
+	expect * =	End
+} -start
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+logexpect l1 -wait
+
+# no backend created by the VMOD
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_backend_fetch {
+		set bereq.backend = backend_dyn.by_name("foo");
+	}
+}
+
+logexpect l1 -start
+
+client c1 -run
+
+logexpect l1 -wait
+
+# if bereq.backend is set to a non-existent backend, fetches fail even
+# if backend "default" exists
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend default { .host="${s1_addr}"; .port="${s1_port}"; }
+
+	sub vcl_backend_fetch {
+		set bereq.backend = backend_dyn.by_name("foo");
+	}
+}
+
+logexpect l1 -start
+
+client c1 -run
+
+logexpect l1 -wait
+
+# failure setting req.backend_hint
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend default { .host="${s1_addr}"; .port="${s1_port}"; }
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("foo");
+	}
+}
+
+logexpect l1 -start
+
+client c1 -run
+
+logexpect l1 -wait
+
+# by_name() can only retrieve backends created by the VMOD
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend default { .host="${s1_addr}"; .port="${s1_port}"; }
+
+	sub vcl_recv {
+		set req.backend_hint = backend_dyn.by_name("default");
+	}
+}
+
+logexpect l1 -start
+
+client c1 -run
+
+logexpect l1 -wait
+
+# std.healthy() returns false for a non-existent VMOD
+varnish v1 -vcl {
+	import ${vmod_std};
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_recv {
+		if (std.healthy(backend_dyn.by_name("be"))) {
+			return(synth(200,"Backend healthy"));
+		} else {
+			return(synth(500,"Backend sick"));
+		}
+	}
+}
+
+client c2 {
+	txreq
+	rxresp
+	expect resp.status == 500
+} -run
