@@ -291,29 +291,33 @@ VCL_BOOL
 vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 {
 	struct backend *backend;
+	struct belist *belist;
+	struct bentry *bentry;
+	const struct director *dir = NULL;
 
 	AN(priv);
+	if (priv->priv == NULL)
+		return 0;
 	if (be == NULL)
 		return 0;
 	backend = check_and_get_backend(ctx, be);
 	if (backend == NULL)
 		return 0;
 
-	if (priv->priv != NULL) {
-		struct belist *belist;
-		struct bentry *bentry;
-
-		CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
-		AN(belist->behead);
-		VTAILQ_FOREACH(bentry, belist->behead, bentry) {
-			CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
-			CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
-			if (bentry->be == be) {
-				VTAILQ_REMOVE(belist->behead, bentry, bentry);
-				break;
-			}
+	CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
+	AN(belist->behead);
+	VTAILQ_FOREACH(bentry, belist->behead, bentry) {
+		CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
+		CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
+		if (bentry->be == be) {
+			dir = be;
+			VTAILQ_REMOVE(belist->behead, bentry, bentry);
+			break;
 		}
 	}
+	if (dir == NULL)
+		return 0;
+
 	VCL_DelBackend(backend);
 	return 1;
 }
