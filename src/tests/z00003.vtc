@@ -1,0 +1,157 @@
+varnishtest "delete()"
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		if (req.method == "DELETE") {
+			if (backend_dyn.delete(backend_dyn.by_name("be"))) {
+				return(synth(204));
+			}
+			else {
+				return(synth(404));
+			}
+		}
+		set req.backend_hint = backend_dyn.by_name("be");
+	}
+} -start
+
+client c1 {
+	txreq -req "DELETE"
+	rxresp
+	expect resp.status == 204
+	txreq -req "DELETE"
+	rxresp
+	expect resp.status == 404
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+# VCL_DelBackend() does not decrement n_backend, nor does it remove
+# the backend from the output of backend.list
+
+# varnish v1 -expect MAIN.n_backend == 1
+
+# Cannot delete a backend not defined by the VMOD
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend s1 { .host="${s1_addr}"; .port="${s1_port}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="be", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		if (req.method == "DELETE") {
+			if (backend_dyn.delete(s1)) {
+				return(synth(204, "No Content"));
+			}
+			else {
+				return(synth(404, "Not found"));
+			}
+		}
+		set req.backend_hint = s1;
+	}
+}
+
+client c1 {
+	txreq -req "DELETE"
+	rxresp
+	expect resp.status == 404
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+# delete() fails if the VMOD has defined no backends at all
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend s1 { .host="${s1_addr}"; .port="${s1_port}"; }
+
+	sub vcl_recv {
+		if (req.method == "DELETE") {
+			if (backend_dyn.delete(backend_dyn.by_name("be"))) {
+				return(synth(204, "No Content"));
+			}
+			else {
+				return(synth(404, "Not found"));
+			}
+		}
+	}
+}
+
+client c1 {
+	txreq -req "DELETE"
+	rxresp
+	expect resp.status == 404
+} -run
+
+# Cannot call delete() with a director
+varnish v1 -errvcl "Symbol not found" {
+	import ${vmod_directors};
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend s1 { .host="${s1_addr}"; .port="${s1_port}"; }
+
+        sub vcl_init {
+                new bar = directors.random();
+                bar.add_backend(s1, 1);
+        }
+
+	sub vcl_recv {
+		if (req.method == "DELETE") {
+			if (backend_dyn.delete(bar)) {
+				return(synth(204, "No Content"));
+			}
+			else {
+				return(synth(404, "Not found"));
+			}
+		}
+	}
+}
+
+# Cannot delete a backend created in another VCL
+varnish v1 -vcl {
+	import backend_dyn from "${vmod_topbuild}/src/.libs/libvmod_backend_dyn.so";
+	backend dummy { .host="${bad_ip}"; }
+
+	sub vcl_init {
+		if (!backend_dyn.create(name="b2", host="${s1_addr}",
+		   				   port="${s1_port}")) {
+			return(fail);
+		}
+	}
+
+	sub vcl_recv {
+		if (req.method == "DELETE") {
+			if (backend_dyn.delete(backend_dyn.by_name("be"))) {
+				return(synth(204, "No Content"));
+			}
+			else {
+				return(synth(404, "Not found"));
+			}
+		}
+	}
+}
+
+client c1 {
+	txreq -req "DELETE"
+	rxresp
+	expect resp.status == 404
+} -run
