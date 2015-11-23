@@ -322,19 +322,6 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 	return 1;
 }
 
-VCL_BOOL
-vmod_remove_probe(VRT_CTX, VCL_BACKEND be)
-{
-	struct backend *backend;
-
-	backend = check_and_get_backend(ctx, be);
-	if (backend == NULL)
-		return 0;
-	if (backend->probe != NULL)
-		VBP_Remove(backend);
-	return 1;
-}
-
 static VCL_BOOL
 control_probe(VRT_CTX, VCL_BACKEND be, int stop)
 {
