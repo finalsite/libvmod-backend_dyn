@@ -25,8 +25,4 @@ $Function BACKEND by_name(PRIV_VCL, STRING name)
 
 $Function BOOL delete(PRIV_VCL, BACKEND be)
 
-$Function BOOL stop_probe(BACKEND be)
-
-$Function BOOL start_probe(BACKEND be)
-
 $Function STRING version()

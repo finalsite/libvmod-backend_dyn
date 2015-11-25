@@ -265,28 +265,6 @@ vmod_by_name(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
 	return NULL;
 }
 
-static inline struct backend *
-check_and_get_backend(VRT_CTX, VCL_BACKEND be)
-{
-	struct backend *backend;
-
-	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
-	CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
-
-	if (be->priv == NULL) {
-		errmsg(ctx, "vmod backend_dyn error: %s is not a leaf backend",
-		       be->vcl_name);
-		return NULL;
-	}
-	backend = (struct backend *) be->priv;
-	if (backend->magic != BACKEND_MAGIC) {
-		errmsg(ctx, "vmod backend_dyn error: "
-		       "%s is not a standard backend", be->vcl_name);
-		return NULL;
-	}
-	return backend;
-}
-
 VCL_BOOL
 vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 {
@@ -295,14 +273,24 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 	struct bentry *bentry;
 	const struct director *dir = NULL;
 
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(priv);
 	if (priv->priv == NULL)
 		return 0;
 	if (be == NULL)
 		return 0;
-	backend = check_and_get_backend(ctx, be);
-	if (backend == NULL)
+	CHECK_OBJ(be, DIRECTOR_MAGIC);
+	if (be->priv == NULL) {
+		errmsg(ctx, "vmod backend_dyn error: %s is not a leaf backend",
+		       be->vcl_name);
 		return 0;
+	}
+	backend = (struct backend *) be->priv;
+	if (backend->magic != BACKEND_MAGIC) {
+		errmsg(ctx, "vmod backend_dyn error: "
+		       "%s is not a standard backend", be->vcl_name);
+		return 0;
+	}
 
 	CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
 	AN(belist->behead);
@@ -320,30 +308,6 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 
 	VCL_DelBackend(backend);
 	return 1;
-}
-
-static VCL_BOOL
-control_probe(VRT_CTX, VCL_BACKEND be, int stop)
-{
-	struct backend *backend;
-
-	backend = check_and_get_backend(ctx, be);
-	if (backend == NULL)
-		return 0;
-	VBP_Control(backend, stop);
-	return 1;
-}
-
-VCL_BOOL
-vmod_stop_probe(VRT_CTX, VCL_BACKEND be)
-{
-	return(control_probe(ctx, be, 1));
-}
-
-VCL_BOOL
-vmod_start_probe(VRT_CTX, VCL_BACKEND be)
-{
-	return(control_probe(ctx, be, 0));
 }
 
 VCL_STRING
