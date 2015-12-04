@@ -34,6 +34,7 @@
 #include <netdb.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include "vcl.h"
 #include "vrt.h"
@@ -60,6 +61,7 @@ struct belist {
 	unsigned magic;
 #define BELIST_MAGIC 0x66d0afdb
 	VTAILQ_HEAD(behead, bentry) *behead;
+	pthread_rwlock_t lock;
 };
 
 static void
@@ -71,6 +73,7 @@ free_belist(void *priv)
 	if (priv == NULL)
 		return;
 	CAST_OBJ(belist, priv, BELIST_MAGIC);
+	AZ(pthread_rwlock_destroy(&belist->lock));
 	AN(belist->behead);
 	bentry = VTAILQ_FIRST(belist->behead);
 	while (bentry != NULL) {
@@ -176,21 +179,30 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 	if (priv->priv == NULL) {
 		ALLOC_OBJ(belist, BELIST_MAGIC);
 		AN(belist);
+		AZ(pthread_rwlock_init(&belist->lock, NULL));
 		belist->behead = malloc(sizeof(belist->behead));
+		AN(belist->behead);
 		VTAILQ_INIT(belist->behead);
 		priv->priv = belist;
 		priv->free = free_belist;
 	}
 	else {
+		int redefined = 0;
 		CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
 		AN(belist->behead);
+		AZ(pthread_rwlock_rdlock(&belist->lock));
 		VTAILQ_FOREACH(bentry, belist->behead, bentry) {
 			CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
 			CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
 			if (strcmp(bentry->be->vcl_name, vcl_name) == 0) {
-				errmsg(ctx, "Backend %s redefined", vcl_name);
-				return 0;
+				redefined = 1;
+				break;
 			}
+		}
+		AZ(pthread_rwlock_unlock(&belist->lock));
+		if (redefined) {
+			errmsg(ctx, "Backend %s redefined", vcl_name);
+			return 0;
 		}
 	}
 
@@ -226,7 +238,9 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 	ALLOC_OBJ(bentry, BENTRY_MAGIC);
 	AN(bentry);
 	bentry->be = dir;
+	AZ(pthread_rwlock_wrlock(&belist->lock));
 	VTAILQ_INSERT_HEAD(belist->behead, bentry, bentry);
+	AZ(pthread_rwlock_unlock(&belist->lock));
 	return 1;
 }
 
@@ -235,6 +249,7 @@ vmod_by_name(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
 {
 	struct belist *belist;
 	struct bentry *bentry;
+	const struct director *dir = NULL;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(priv);
@@ -244,13 +259,17 @@ vmod_by_name(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
 		return NULL;
 	CAST_OBJ_NOTNULL(belist, priv->priv, BELIST_MAGIC);
 	AN(belist->behead);
+	AZ(pthread_rwlock_rdlock(&belist->lock));
 	VTAILQ_FOREACH(bentry, belist->behead, bentry) {
 		CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
 		CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
-		if (strcmp(name, bentry->be->vcl_name) == 0)
-			return bentry->be;
+		if (strcmp(name, bentry->be->vcl_name) == 0) {
+			dir = bentry->be;
+			break;
+		}
 	}
-	return NULL;
+	AZ(pthread_rwlock_unlock(&belist->lock));
+	return dir;
 }
 
 VCL_BOOL
@@ -270,6 +289,7 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 
 	CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
 	AN(belist->behead);
+	AZ(pthread_rwlock_wrlock(&belist->lock));
 	VTAILQ_FOREACH(bentry, belist->behead, bentry) {
 		CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
 		CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
@@ -279,6 +299,7 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 			break;
 		}
 	}
+	AZ(pthread_rwlock_unlock(&belist->lock));
 	if (dir == NULL)
 		return 0;
 	VRT_delete_backend(ctx, &dir);
