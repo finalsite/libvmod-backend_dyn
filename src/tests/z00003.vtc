@@ -41,10 +41,12 @@ client c1 {
 	expect resp.status == 503
 } -run
 
-# VCL_DelBackend() does not decrement n_backend, nor does it remove
-# the backend from the output of backend.list
+# n_backend is not decremented until 60 seconds after backend cooldown
+varnish v1 -expect MAIN.n_backend == 2
 
-# varnish v1 -expect MAIN.n_backend == 1
+# The deleted backend does not appear in the output of backend.list
+# Verify this by inspecting the log
+varnish v1 -cliok backend.list
 
 # Cannot delete a backend not defined by the VMOD
 varnish v1 -vcl {

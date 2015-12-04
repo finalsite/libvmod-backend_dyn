@@ -268,10 +268,9 @@ vmod_by_name(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
 VCL_BOOL
 vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 {
-	struct backend *backend;
 	struct belist *belist;
 	struct bentry *bentry;
-	const struct director *dir = NULL;
+	struct director *dir = NULL;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(priv);
@@ -280,17 +279,6 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 	if (be == NULL)
 		return 0;
 	CHECK_OBJ(be, DIRECTOR_MAGIC);
-	if (be->priv == NULL) {
-		errmsg(ctx, "vmod backend_dyn error: %s is not a leaf backend",
-		       be->vcl_name);
-		return 0;
-	}
-	backend = (struct backend *) be->priv;
-	if (backend->magic != BACKEND_MAGIC) {
-		errmsg(ctx, "vmod backend_dyn error: "
-		       "%s is not a standard backend", be->vcl_name);
-		return 0;
-	}
 
 	CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
 	AN(belist->behead);
@@ -298,15 +286,15 @@ vmod_delete(VRT_CTX, struct vmod_priv *priv, VCL_BACKEND be)
 		CHECK_OBJ_NOTNULL(bentry, BENTRY_MAGIC);
 		CHECK_OBJ_NOTNULL(bentry->be, DIRECTOR_MAGIC);
 		if (bentry->be == be) {
-			dir = be;
+			dir = bentry->be;
 			VTAILQ_REMOVE(belist->behead, bentry, bentry);
 			break;
 		}
 	}
 	if (dir == NULL)
 		return 0;
-
-	VCL_DelBackend(backend);
+	VRT_delete_backend(ctx, &dir);
+	AZ(dir);
 	return 1;
 }
 
