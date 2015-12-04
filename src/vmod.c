@@ -209,6 +209,7 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 
 	be.ipv4_suckaddr = sa4;
 	be.ipv6_suckaddr = sa6;
+	be.probe = probe;
 #define DA(x) if (x != NULL && x[0] != '\0') be.x = strdup(x);
 #define DN(x) be.x = x;
 	VRT_BACKEND_HANDLE();
@@ -221,19 +222,6 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 
 	dir = VRT_new_backend(ctx, &be);
 	CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
-
-	if (probe != NULL) {
-		struct backend *backend;
-		struct tcp_pool *tpool;
-
-		CHECK_OBJ(probe, VRT_BACKEND_PROBE_MAGIC);
-		CAST_OBJ_NOTNULL(backend, dir->priv, BACKEND_MAGIC);
-		AZ(backend->probe);
-		tpool = VBT_Ref(sa4, sa6);
-		AN(tpool);
-		VBP_Insert(backend, probe, tpool);
-		AN(backend->probe);
-	}
 
 	ALLOC_OBJ(bentry, BENTRY_MAGIC);
 	AN(bentry);
