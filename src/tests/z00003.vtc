@@ -44,6 +44,9 @@ client c1 {
 # n_backend is not decremented until 60 seconds after backend cooldown
 varnish v1 -expect MAIN.n_backend == 2
 
+# The backend also still appears in the stats immediately after delete
+varnish v1 -expect VBE.vcl1.be.happy == 0
+
 # The deleted backend does not appear in the output of backend.list
 # Verify this by inspecting the log
 varnish v1 -cliok backend.list
