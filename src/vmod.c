@@ -50,6 +50,8 @@
 
 #include "vcc_if.h"
 
+#define IPBUFSIZ (VTCP_ADDRBUFSIZE + VTCP_PORTBUFSIZE + 2)
+
 struct bentry {
 	unsigned magic;
 #define BENTRY_MAGIC 0x51ced5b5
@@ -126,19 +128,13 @@ get_suckaddr(VCL_STRING host, VCL_STRING port, int family)
 	return sa;
 }
 
-static char *
-get_addrname(struct suckaddr *sa)
+static void
+get_addrname(char *addr, struct suckaddr *sa)
 {
-	char a[VTCP_ADDRBUFSIZE], p[VTCP_PORTBUFSIZE], *addr;
-	struct vsb *sb = VSB_new_auto();
+	char a[VTCP_ADDRBUFSIZE], p[VTCP_PORTBUFSIZE];
 
 	VTCP_name(sa, a, sizeof(a), p, sizeof(p));
-	AZ(VSB_printf(sb, "%s:%s", a, p));
-	AZ(VSB_finish(sb));
-	addr = strdup(VSB_data(sb));
-	AN(addr);
-	VSB_delete(sb);
-	return(addr);
+	snprintf(addr, IPBUFSIZ, "%s:%s", a, p);
 }
 
 VCL_BOOL
@@ -153,7 +149,7 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 	struct director *dir;
 	struct vrt_backend be = { .magic = VRT_BACKEND_MAGIC };
 	struct suckaddr *sa4 = NULL, *sa6 = NULL;
-	char *ipv4_addr = NULL, *ipv6_addr = NULL;
+	char ipv4_addr[IPBUFSIZ] = "", ipv6_addr[IPBUFSIZ] = "";
 	const char *hosthdr = host_header;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
@@ -215,9 +211,9 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 		return 0;
 	}
 	if (sa4 != NULL)
-		ipv4_addr = get_addrname(sa4);
+		get_addrname(ipv4_addr, sa4);
 	if (sa6 != NULL)
-		ipv6_addr = get_addrname(sa6);
+		get_addrname(ipv6_addr, sa6);
 
 	be.ipv4_suckaddr = sa4;
 	be.ipv6_suckaddr = sa6;
@@ -227,10 +223,6 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 	VRT_BACKEND_HANDLE();
 #undef DA
 #undef DN
-	if (ipv4_addr != NULL)
-		free(ipv4_addr);
-	if (ipv6_addr != NULL)
-		free(ipv6_addr);
 
 	dir = VRT_new_backend(ctx, &be);
 	CHECK_OBJ_NOTNULL(dir, DIRECTOR_MAGIC);
