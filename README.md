@@ -10,7 +10,7 @@
 $Module backend_dyn 3 Varnish Module to dynamically create and delete backends
 
 ::
-
+```
   import directors;
 
   probe p { .url = "/"; }
@@ -70,7 +70,7 @@ $Module backend_dyn 3 Varnish Module to dynamically create and delete backends
   sub vcl_backend_fetch {
       set bereq.backend = backend_dyn.by_name("be2");
   }
-
+```
 DESCRIPTION
 ===========
 
@@ -164,7 +164,7 @@ Optional Parameters
 	no upper bound for the connections to a backend.
 
 Examples::
-
+```
 	if (!backend_dyn.create(name="be", host="myhost.com")) {
 		return(synth(500, "Backend creation failed"));
 	}
@@ -174,7 +174,7 @@ Examples::
                                 between_bytes_timeout=1s)) {
 		return(synth(500, "Backend creation failed"));
 	}
-
+```
 $Function BACKEND by_name(PRIV_VCL, STRING name)
 
 Description
@@ -196,12 +196,12 @@ Description
 	XXX: Document dir.add_backend(NULL)
 
 Examples::
-
-	set req.backend_hint = backend_dyn.by_name("be");
-	set bereq.backend = backend_dyn.by_name("be");
-	dir.add_backend(backend_dyn.by_name("be"));
-	backend_dyn.delete(backend_dyn.by_name("be"))
-
+```
+set req.backend_hint = backend_dyn.by_name("be");
+set bereq.backend = backend_dyn.by_name("be");
+dir.add_backend(backend_dyn.by_name("be"));
+backend_dyn.delete(backend_dyn.by_name("be"))
+```
 $Function BOOL delete(PRIV_VCL, BACKEND be)
 
 Description
@@ -236,21 +236,21 @@ Description
 	``true`` otherwise.
 
 Examples::
-
+```
 	if (!backend_dyn.delete(backend_dyn.by_name("be"))) {
 		return(synth(500, "Backend delete failed"));
 	}
-
+```
 $Function STRING version()
 
 Description
 	Returns the version string for this vmod.
 
 Example::
-
+```
 	import std;
 	std.log("Using VMOD backend_dyn version " + backend_dyn.version());
-
+```
 ERRORS
 ======
 
@@ -277,22 +277,22 @@ INSTALLATION
 The VMOD is built against a Varnish installation, and the autotools
 use ``pkg-config(1)`` to locate the necessary header files and other
 resources. This sequence will install the VMOD::
-
+```
   > ./autogen.sh	# for builds from the git repo
   > ./configure
   > make
   > make check		# to run unit tests in src/tests/*.vtc
   > make distcheck	# run check and prepare a distribution tarball
   > sudo make install
-
+```
 If you have installed Varnish in a non-standard directory, call
 ``autogen.sh`` and ``configure`` with the ``PKG_CONFIG_PATH``
 environment variable pointing to the appropriate path. For example,
 when varnishd configure was called with ``--prefix=$PREFIX``, use::
-
+```
   > PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
   > export PKG_CONFIG_PATH
-
+```
 By default, the vmod ``configure`` script installs the vmod in
 the same directory as Varnish, determined via ``pkg-config(1)``. The
 vmod installation directory can be overridden by passing the
