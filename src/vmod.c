@@ -181,8 +181,7 @@ vmod_create(VRT_CTX, struct vmod_priv *priv, VCL_STRING vcl_name,
 		VTAILQ_INIT(belist->behead);
 		priv->priv = belist;
 		priv->free = free_belist;
-	}
-	else {
+	} else {
 		int redefined = 0;
 		CAST_OBJ(belist, priv->priv, BELIST_MAGIC);
 		AN(belist->behead);
@@ -262,6 +261,15 @@ vmod_by_name(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
 	}
 	AZ(pthread_rwlock_unlock(&belist->lock));
 	return dir;
+}
+
+VCL_BOOL
+vmod_exists(VRT_CTX, struct vmod_priv *priv, VCL_STRING name)
+{
+  if (vmod_by_name(ctx, priv, name) != NULL) {
+    return 1;
+  }
+  return 0;
 }
 
 VCL_BOOL

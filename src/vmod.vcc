@@ -241,6 +241,20 @@ Examples::
 		return(synth(500, "Backend delete failed"));
 	}
 
+$Function BOOL exists(PRIV_VCL, STRING name)
+
+Description
+	Returns true if the backend already exists, false otherwise.
+
+Examples::
+
+	if (!backend_dyn.exists("be"))) {
+    if (!backend_dyn.create(name="be", host="behost.com")) {
+		  return(synth(500, "Backend delete failed"));
+	  }
+  }
+  set req.backend_hint = backend_dyn.by_name("be");
+
 $Function STRING version()
 
 Description
